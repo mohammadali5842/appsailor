@@ -6,7 +6,7 @@ terraform {
   }
 }
 provider "aws" {
-  access_key = "AKIAQ3EGP6ZUDRKEZSIR"
+  region = "ap-south-1"
 }
 
 resource "aws_vpc" "sailorvpc" {
