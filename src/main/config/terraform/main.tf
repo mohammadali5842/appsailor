@@ -9,26 +9,142 @@ provider "aws" {
   region = "ap-south-1"
 }
 
-resource "aws_vpc" "sailorvpc" {
-    cidr_block = "10.0.0.0/16"
+resource "aws_vpc" "urotaxvpc" {
+  cidr_block = var.urotaxvpc_cidr
+  tags = {
+    "Name" = "urotaxivpc"
+  }
 }
-
-resource "aws_subnet" "sailorsubnet" {
-  vpc_id = aws_vpc.sailorvpc.id
-  cidr_block = "10.0.1.0/24"
+resource "aws_subnet" "urotaxipubsn1" {
+  cidr_block = var.urotaxvpc_pubsn1
+  vpc_id     = aws_vpc.urotaxvpc.id
+  tags = {
+    "Name" = "urotaxipubsn1"
+  }
   availability_zone = "ap-south-1a"
 }
 
-resource "aws_key_pair" "sailor_kp" {
-  key_name = "sailor_kp"
-  public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCffnvTTAkamy2Kv/4YTyrZwTsvOkf8U7HgGzcLrWnsiY6cuPWGgQXDsWnLgpNv2deNECqQ/McJRrLci0En9gfpSlrhMglx5I2CEsjYe0f7S1argp5HcBpIIHEBigHhdif3xxChOKUcq99e5YADNaZ/nvRYiSQ4atM7KleTSLYTMD1CdSuGkKsN3fIcG366+jRzi6XsU/jUOUOsDFBMiIg1954PA/cycTyMQiFnuImez5AfbASSM6i9PXBGxGeImlAAMHkVx3qrwny4qB/z4P3JUwMZYU7l+p2sx0+n40GcmUeIrlB5YabthcohgyCjtKFPqlg9jWzRhPedFrtMD1FaHlpCFRzvORARP6ELUd4Vz5Vw+6egz6Ei5+hyvhyQdTcQVrDg8obGbO4lDd7weeX0u8W7kut5CkqoSU26BpY3YXEMy+Y1/RPrESNN8gPfrBWywcTBUv7YKRVgcdhp6xJCirtZPUcFcvMC1POXYvFxqOx3hXQcHU+WMOktn6i00J0= dell@DESKTOP-TI131FD"
-}
-resource "aws_instance" "sailor_instance" {
-  subnet_id = aws_subnet.sailorsubnet.id
-  ami = "ami-03f4878755434977f"
-  instance_type = "t2.micro"
-  key_name = aws_key_pair.sailor_kp.key_name
+
+resource "aws_subnet" "urotaxiprvsn3" {
+  cidr_block = var.urotaxvpc_prvsn3
+  vpc_id     = aws_vpc.urotaxvpc.id
   tags = {
-    "name" = "sailor_instance"
+    "Name" = "urotaxiprvsn3"
+  }
+  availability_zone = "ap-south-1a"
+}
+
+resource "aws_subnet" "urotaxiprvsn4" {
+  cidr_block = var.urotaxvpc_prvsn4
+  vpc_id     = aws_vpc.urotaxvpc.id
+  tags = {
+    "Name" = "urotaxiprvsn4"
+  }
+  availability_zone = "ap-south-1b"
+}
+resource "aws_internet_gateway" "urotaxiig" {
+  vpc_id = aws_vpc.urotaxvpc.id
+  tags = {
+    "Name" = "urotaxig"
   }
 }
+
+resource "aws_route_table" "urotaxiigrt" {
+  vpc_id = aws_vpc.urotaxvpc.id
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.urotaxiig.id
+  }
+  tags = {
+    "Name" = "urotaxiigrt"
+  }
+}
+resource "aws_route_table_association" "urotaxiigrtassociation" {
+  route_table_id = aws_route_table.urotaxiigrt.id
+  subnet_id      = aws_subnet.urotaxipubsn1.id
+}
+
+resource "aws_security_group" "urotaxjavaserversg" {
+  vpc_id = aws_vpc.urotaxvpc.id
+  ingress {
+    from_port   = "8080"
+    to_port     = "8080"
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress {
+    from_port   = "22"
+    to_port     = "22"
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = -1
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  tags = {
+    "Name" = "urotaxijavaserversg"
+  }
+}
+
+resource "aws_security_group" "urotaxdbsg" {
+  vpc_id = aws_vpc.urotaxvpc.id
+  ingress {
+    from_port   = "3306"
+    to_port     = "3306"
+    protocol    = "tcp"
+    cidr_blocks = ["10.0.0.0/16"]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = -1
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  tags = {
+    "Name" = "urotaxidbsg"
+  }
+}
+
+resource "aws_db_subnet_group" "urotaxidbsubnetgrp" {
+    name = "urotaxidbsubnetgrp"
+    subnet_ids = [aws_subnet.urotaxiprvsn3.id, aws_subnet.urotaxiprvsn4.id]
+    tags = {
+      "Name" = "urotaxidbsubnetgroup"
+    }
+}
+
+resource "aws_db_instance" "urotaxidb" {
+  vpc_security_group_ids = [aws_security_group.urotaxdbsg.id]
+  allocated_storage = 10
+  db_name = "urotaxidb"
+  engine = "mysql"
+  engine_version = var.db_engine_version
+  instance_class = var.db_instance_type
+  username = var.db_username
+  password = var.db_password
+  skip_final_snapshot = true
+  db_subnet_group_name = aws_db_subnet_group.urotaxidbsubnetgrp.name
+}
+
+resource "aws_key_pair" "urotaxikp" {
+  key_name = "urotaxikey"
+  public_key = var.urotaxi_public_key
+}
+
+resource "aws_instance" "urotaxiec2" {
+  vpc_security_group_ids = [aws_security_group.urotaxjavaserversg.id]
+  subnet_id = aws_subnet.urotaxipubsn1.id
+  ami=var.ami
+  key_name = aws_key_pair.urotaxikp.key_name
+  instance_type = var.instance_shape  
+  associate_public_ip_address = true
+}
+
+
+
+
+
+
